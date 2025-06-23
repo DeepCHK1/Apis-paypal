@@ -3,3 +3,7 @@ uvicorn==0.30.6
 requests==2.32.3
 faker==28.1.0
 pydantic==2.9.2
+flask==3.0.3
+requests==2.32.3
+names==0.3.0
+gunicorn==23.0.0
